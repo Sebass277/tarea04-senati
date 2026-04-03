@@ -6,7 +6,7 @@ const app = express();
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
-// === CONFIGURACIÓN DE CONEXIÓN (CLEVER CLOUD) ===
+
 const pool = mysql.createPool({
     host: 'b1xmex2llgxskp78829g-mysql.services.clever-cloud.com',
     user: 'uctthwr3xtttbxlq',
@@ -18,9 +18,9 @@ const pool = mysql.createPool({
     queueLimit: 0
 });
 
-// === ENDPOINTS DE LA API (PARA EL CRUD REAL) ===
 
-// Obtener todos los productos
+
+
 app.get('/api/productos', (req, res) => {
     pool.query('SELECT * FROM productos', (err, results) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -28,7 +28,7 @@ app.get('/api/productos', (req, res) => {
     });
 });
 
-// Agregar un nuevo producto
+
 app.post('/api/productos', (req, res) => {
     const { nombre, precio, stock, descripcion, imagen } = req.body;
     const imgFinal = imagen || `https://picsum.photos/300/200?random=${Math.random()}`;
@@ -39,16 +39,25 @@ app.post('/api/productos', (req, res) => {
     });
 });
 
-// Eliminar un producto
+
+app.put('/api/productos/:id', (req, res) => {
+    const { nombre, precio, stock, descripcion, imagen } = req.body;
+    const sql = 'UPDATE productos SET nombre=?, precio=?, stock=?, descripcion=?, imagen=? WHERE id=?';
+    pool.query(sql, [nombre, precio, stock, descripcion, imagen, req.params.id], (err) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ status: 'updated' });
+    });
+});
+
+
 app.delete('/api/productos/:id', (req, res) => {
-    const id = req.params.id;
-    pool.query('DELETE FROM productos WHERE id = ?', [id], (err) => {
+    pool.query('DELETE FROM productos WHERE id = ?', [req.params.id], (err) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ status: 'deleted' });
     });
 });
 
-// === RUTA PRINCIPAL (FRONTEND DE TECHSTORE) ===
+
 app.get('/', (req, res) => {
     res.send(`
 <!DOCTYPE html>
@@ -56,7 +65,7 @@ app.get('/', (req, res) => {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TechStore Cloud - Sebastian</title>
+    <title>TechStore Cloud - CRUD Completo</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
         *{box-sizing:border-box}
@@ -69,90 +78,97 @@ app.get('/', (req, res) => {
         .active{display:block}
         .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:20px}
         .card{background:#020617;border-radius:16px;padding:15px;box-shadow:0 10px 20px rgba(0,0,0,.4);transition:.2s; border: 1px solid #1e293b}
-        .card:hover{transform:translateY(-5px); border-color: #38bdf8}
         .card img{width:100%;height:180px;object-fit:cover;border-radius:10px}
         .card h3{margin:15px 0 5px; color: #38bdf8}
         .price{color:#22c55e;font-weight:600; font-size: 1.2rem}
         .form{background:#1e293b;padding:25px;border-radius:16px;margin-bottom:30px; border: 1px solid #38bdf8}
         .form input, .form textarea{width:100%;margin:8px 0;padding:12px;border-radius:8px;border:1px solid #334155;background:#0f172a;color:white}
         .form button{width:100%;padding:12px;background:#38bdf8;border:none;border-radius:10px;font-weight:600;cursor:pointer; margin-top:10px}
-        .form button:hover{background:#0ea5e9}
-        .admin-card button{margin-top:10px;width:100%;padding:10px;border:none;border-radius:8px;background:#ef4444;color:white;cursor:pointer; font-weight:bold}
-        pre{background:#020617;padding:15px;border-radius:10px;overflow:auto; color: #38bdf8; border: 1px solid #38bdf8}
-        .hero{background:linear-gradient(135deg,#0ea5e9,#6366f1);padding:40px;border-radius:20px;text-align:center;margin-bottom:30px; box-shadow: 0 10px 30px rgba(56, 189, 248, 0.2)}
-        .hero h1{margin:0;font-size:2.2rem}
+        .btn-edit{background:#f59e0b !important; color:white !important; margin-bottom:5px}
+        .btn-delete{background:#ef4444 !important; color:white !important}
     </style>
 </head>
 <body>
 
-<header>🛒 TechStore Cloud</header>
+<header>🛒 TechStore CRUD PRO</header>
 
 <nav>
     <button onclick="show('inicio')">🏠 Inicio</button>
     <button onclick="show('admin')">⚙️ Admin</button>
-    <button onclick="show('api')">🔗 API (JSON)</button>
+    <button onclick="show('api')">🔗 API</button>
 </nav>
 
 <div id="inicio" class="section active">
-    <div class="hero">
-        <h1>Tecnología en la Nube</h1>
-        <p>Datos reales desde Clever Cloud + Render</p>
-    </div>
     <div class="grid" id="inicioProductos"></div>
 </div>
 
 <div id="admin" class="section">
-    <h2>Panel de Administración (CRUD)</h2>
+    <h2 id="formTitle">Agregar Nuevo Producto</h2>
     <div class="form">
-        <input id="nombre" placeholder="Nombre del producto">
-        <input id="precio" type="number" placeholder="Precio (S/)">
+        <input id="prodId" type="hidden">
+        <input id="nombre" placeholder="Nombre">
+        <input id="precio" type="number" placeholder="Precio">
         <input id="stock" type="number" placeholder="Stock">
-        <input id="imagen" placeholder="URL de la imagen (Ej: https://picsum.photos/300/200)">
-        <textarea id="descripcion" placeholder="Descripción breve"></textarea>
-        <button onclick="agregarProducto()">🚀 Publicar en la Nube</button>
+        <input id="imagen" placeholder="URL Imagen">
+        <textarea id="descripcion" placeholder="Descripción"></textarea>
+        <button id="btnSave" onclick="guardarProducto()">🚀 Guardar en la Nube</button>
+        <button id="btnCancel" style="display:none; background:#64748b" onclick="resetForm()">Cancelar Edición</button>
     </div>
     <div class="grid" id="adminProductos"></div>
 </div>
 
 <div id="api" class="section">
-    <h2>Datos Crudos del Servidor</h2>
-    <pre id="apiData">Cargando datos JSON...</pre>
+    <pre id="apiData">Cargando JSON...</pre>
 </div>
 
 <script>
 async function cargarDatos() {
-    try {
-        const res = await fetch('/api/productos');
-        const productos = await res.json();
-        
-        // Mostrar en Inicio (Cards)
-        document.getElementById('inicioProductos').innerHTML = productos.map(p => \`
-            <div class="card">
-                <img src="\${p.imagen || 'https://picsum.photos/300/200?tech'}">
-                <h3>\${p.nombre}</h3>
-                <p>\${p.descripcion}</p>
-                <p class="price">S/ \${p.precio}</p>
-                <p><small>Stock disponible: \${p.stock}</small></p>
-            </div>
-        \`).join('');
+    const res = await fetch('/api/productos');
+    const productos = await res.json();
+    
+    document.getElementById('inicioProductos').innerHTML = productos.map(p => \`
+        <div class="card">
+            <img src="\${p.imagen}">
+            <h3>\${p.nombre}</h3>
+            <p>\${p.descripcion}</p>
+            <p class="price">S/ \${p.precio}</p>
+        </div>\`).join('');
 
-        // Mostrar en Admin (Tabla/Lista de eliminación)
-        document.getElementById('adminProductos').innerHTML = productos.map(p => \`
-            <div class="card admin-card">
-                <h3>\${p.nombre}</h3>
-                <p>S/ \${p.precio}</p>
-                <button onclick="eliminarProducto(\${p.id})">🗑️ Eliminar</button>
-            </div>
-        \`).join('');
+    document.getElementById('adminProductos').innerHTML = productos.map(p => \`
+        <div class="card">
+            <h3>\${p.nombre}</h3>
+            <p>S/ \${p.precio}</p>
+            <button class="btn-edit" onclick='prepararEdicion(\${JSON.stringify(p)})'>✏️ Editar</button>
+            <button class="btn-delete" onclick="eliminarProducto(\${p.id})">🗑️ Eliminar</button>
+        </div>\`).join('');
 
-        // Mostrar en API (Raw Data)
-        document.getElementById('apiData').textContent = JSON.stringify(productos, null, 2);
-    } catch (e) {
-        console.error("Error", e);
-    }
+    document.getElementById('apiData').textContent = JSON.stringify(productos, null, 2);
 }
 
-async function agregarProducto() {
+function prepararEdicion(p) {
+    document.getElementById('prodId').value = p.id;
+    document.getElementById('nombre').value = p.nombre;
+    document.getElementById('precio').value = p.precio;
+    document.getElementById('stock').value = p.stock;
+    document.getElementById('descripcion').value = p.descripcion;
+    document.getElementById('imagen').value = p.imagen;
+    
+    document.getElementById('formTitle').innerText = "Editando Producto #" + p.id;
+    document.getElementById('btnSave').innerText = "💾 Actualizar Cambios";
+    document.getElementById('btnCancel').style.display = "block";
+    window.scrollTo(0,0);
+}
+
+function resetForm() {
+    document.getElementById('prodId').value = "";
+    document.querySelectorAll('.form input, .form textarea').forEach(i => i.value = '');
+    document.getElementById('formTitle').innerText = "Agregar Nuevo Producto";
+    document.getElementById('btnSave').innerText = "🚀 Guardar en la Nube";
+    document.getElementById('btnCancel').style.display = "none";
+}
+
+async function guardarProducto() {
+    const id = document.getElementById('prodId').value;
     const data = {
         nombre: document.getElementById('nombre').value,
         precio: document.getElementById('precio').value,
@@ -161,23 +177,23 @@ async function agregarProducto() {
         imagen: document.getElementById('imagen').value
     };
 
-    if(!data.nombre || !data.precio) return alert("Nombre y precio son obligatorios");
+    const url = id ? '/api/productos/' + id : '/api/productos';
+    const method = id ? 'PUT' : 'POST';
 
-    await fetch('/api/productos', {
-        method: 'POST',
+    await fetch(url, {
+        method: method,
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(data)
     });
-    
-    // Limpiar campos y recargar
-    document.querySelectorAll('.form input, .form textarea').forEach(i => i.value = '');
+
+    resetForm();
     cargarDatos();
     show('inicio');
 }
 
 async function eliminarProducto(id) {
-    if(confirm('¿Eliminar producto de la base de datos remota?')) {
-        await fetch(\`/api/productos/\${id}\`, { method: 'DELETE' });
+    if(confirm('¿Eliminar de la nube?')) {
+        await fetch('/api/productos/' + id, { method: 'DELETE' });
         cargarDatos();
     }
 }
@@ -188,18 +204,11 @@ function show(id) {
 }
 
 cargarDatos();
-setInterval(cargarDatos, 15000); // Recarga automática cada 15 seg
 </script>
-
 </body>
 </html>
     `);
 });
 
-// PUERTO DINÁMICO
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
-    console.log('-----------------------------------------');
-    console.log('🚀 SERVIDOR CORRIENDO: Puerto ' + port);
-    console.log('-----------------------------------------');
-});
+app.listen(port, () => console.log('Servidor en puerto ' + port));
